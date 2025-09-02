@@ -133,7 +133,6 @@ class MainWindow(QWidget):
                 count_fail += 1
 
         if count_ok and not count_fail:
-            # self.status.setText(f"Zapisano {count_ok} plik(ów) do: {self.dest_dir}")
             self.status.setText(f"Plik ma {read_from_pdf(dest)} znakow.")
         elif count_ok and count_fail:
             self.status.setText(f"OK: {count_ok}, błędów: {count_fail} — folder: {self.dest_dir}")
@@ -141,7 +140,6 @@ class MainWindow(QWidget):
             self.status.setText("Nie udało się zapisać żadnego pliku.")
 
     def open_dest_folder(self):
-        # Windows: os.startfile; uniwersalnie: QDesktopServices
         try:
             if sys.platform.startswith("win"):
                 os.startfile(self.dest_dir)  # type: ignore[attr-defined]
