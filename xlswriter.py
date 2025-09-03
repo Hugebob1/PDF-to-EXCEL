@@ -1,46 +1,42 @@
 from logging import exception
-
+from pathlib import Path
 import xlsxwriter
-
-data1 = [
-    ["Value", 10000, 5000, 8000, 6000],
-    ["Pears", 2000, 3000, 4000, 5000],
-    ["Bananas", 6000, 6000, 6500, 6000],
-    ["Oranges", 500, 300, 200, 700],
-]
 
 class XlsWriter:
     def __init__(self, path):
-        if path.endswith('xlsx'):
-            self.path = path
+        p = Path(path)
+        if p.suffix.lower() != ".xlsx":
+            p = p.with_suffix(".xlsx")
+        p.parent.mkdir(parents=True, exist_ok=True)
+        self.path = p
+
     def create_tab(self, data):
+        if not data or not data[0]:
+            raise ValueError("Pusta tabela: brak danych lub kolumn.")
+
+        n_rows = len(data)        # liczba WIERSZY
+        n_cols = len(data[0])     # liczba KOLUMN
+
+        start_l = "B"
+        start_d = 3
+        first_col = ord(start_l) - ord('A')
+        first_row = start_d - 1
+        last_row = first_row + n_rows
+        last_col = first_col + n_cols - 1
+
         try:
-            with xlsxwriter.Workbook(str(self.path)) as workbook:
-                worksheet1 = workbook.add_worksheet()
-                caption = "Default table with data."
+            with xlsxwriter.Workbook(str(self.path)) as wb:
+                ws = wb.add_worksheet()
+                ws.set_column(first_col, last_col, 12)
+                ws.write("B1", "Result.")
 
-                # Set the columns widths.
-                worksheet1.set_column("B:G", 12)
+                cols = [{"header": "Products"}, {"header": "Amount"}]
 
-                # Write the caption.
-                worksheet1.write("B1", caption)
-
-                # Add a table to the worksheet.
-                a = len(data)
-                b = len(data[0])
-                # initial position
-                start_l = "B"
-                start_d = 3
-
-                first_row = start_d - 1
-                first_col = ord(start_l) - ord('A')
-                last_row = first_row + b - 1
-                last_col = first_col + a - 1
-
-                worksheet1.add_table(first_row, first_col, last_row, last_col, {"data": data})
+                ws.add_table(first_row, first_col, last_row, last_col, {
+                    "data": data,
+                    "columns": cols,
+                })
+        except PermissionError:
+            print(f"Plik jest otwarty w Excelu, zamknij go: {self.path}")
         except Exception as e:
-            print(f"Nie udalo sie utworzyc tabeli prosze zamknac plik: {self.path}")
-
-bot = XlsWriter("tabelka.xlsx")
-bot.create_tab(data1)
-
+            print(f"Błąd tworzenia tabeli: {e}")

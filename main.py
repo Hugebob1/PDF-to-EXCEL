@@ -74,6 +74,7 @@ def read_from_pdf(path):
 
     # print(len(reader.pages))
     if reader.pages[0].extract_text():
+        print(reader.pages[0].extract_text())
         return len(reader.pages[0].extract_text())
     return "Nie udalo sie odczytac pdfa."
 
