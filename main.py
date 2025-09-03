@@ -1,6 +1,7 @@
 import pypdf
 import sys, os, shutil, datetime
 from pathlib import Path
+import re
 
 from PySide6.QtCore import Qt, QUrl, Signal
 from PySide6.QtGui import QDesktopServices
@@ -8,11 +9,25 @@ from PySide6.QtWidgets import (
     QApplication, QWidget, QLabel, QPushButton, QVBoxLayout, QHBoxLayout,
     QFileDialog, QTableWidget, QTableWidgetItem, QMessageBox, QLineEdit
 )
+
+from xlswriter import XlsWriter
+
+
 def get_inbox_dir() -> Path:
 
     base = Path.home() / "Documents" / "TataPDF" / "Inbox"
     base.mkdir(parents=True, exist_ok=True)
     return base
+
+def get_excel_path() -> Path:
+    folder = Path.home() / "Documents" / "TataExcel" / "Results"
+    folder.mkdir(parents=True, exist_ok=True)
+    return folder / "wyniki.xlsx"
+
+def get_excel_dir() -> Path:
+    folder = Path.home() / "Documents" / "TataExcel" / "Results"
+    folder.mkdir(parents=True, exist_ok=True)
+    return folder
 
 def is_pdf(path: Path) -> bool:
     return path.suffix.lower() == ".pdf"
@@ -68,14 +83,61 @@ class DropZone(QLabel):
             self.filesDropped.emit(paths)
         event.acceptProposedAction()
 
+# only temp
+t = ""
+with open("test_data.txt", encoding="utf-8") as f:
+    t += f.read()
+print(len(t))
+
+
+def get_data(text):
+    if text:
+        text = text.replace("\r\n", "\n")
+        text = text.replace("-\n", "")
+        text = text.lower()
+        start = re.search(r"(?im)^LP\.\s*Asortyment\b", text)
+        if start:
+            text = text[start.start():]
+        pattern = r'(?m)^\s*\d+\s+[^\W\d_][^,]*,\s*[^,]*'
+        patterns = re.findall(pattern, text)
+        ans = []
+        t_p = []
+        for line in patterns:
+            if len(line.split("\n"))>1:
+                value = int(line.split("\n")[0].replace(" s", ""))
+                ans.append(value)
+            t_p.append(line.split("\n")[len(line.split("\n"))-1])
+
+        final = []
+        cnt = 0
+        products = []
+        for l in t_p:
+            cnt+=1
+            if cnt <= len(ans):
+                products.append(l)
+                tmp = [l, ans[cnt-1]]
+                final.append(tmp)
+
+        # data pattern = [["product" , ".....", "...."]
+        # ["Amount", "...", "...."]]
+        data = []
+        for i in range(len(products)):
+            data.append([products[i], ans[i]])
+        return data
+
 def read_from_pdf(path):
+    print(get_excel_path())
     reader = pypdf.PdfReader(path)
+    writer = XlsWriter(get_excel_path())
 
+    if t:
 
+        writer.create_tab(get_data(t))
+        return "Utworzono tabele kilknij przycisk Otwórz wynikowy excel"
     # print(len(reader.pages))
     if reader.pages[0].extract_text():
-        print(reader.pages[0].extract_text())
-        return len(reader.pages[0].extract_text())
+        writer.create_tab(get_data(reader.pages[0].extract_text()))
+        return "Utworzono tabele kilknij przycisk Otwórz wynikowy excel"
     return "Nie udalo sie odczytac pdfa."
 
 # ------------------ Główne okno ---------------------
@@ -86,7 +148,7 @@ class MainWindow(QWidget):
         self.resize(700, 450)
 
         self.drop = DropZone()
-        self.btn_pick = QPushButton("Wybierz PDF…")
+        self.btn_pick = QPushButton("Otwórz wynikowy excel")
         self.btn_open_folder = QPushButton("Otwórz folder docelowy")
         self.status = QLineEdit()
         self.status.setReadOnly(True)
@@ -109,11 +171,21 @@ class MainWindow(QWidget):
         self.dest_dir = get_inbox_dir()
 
     def pick_files(self):
-        paths, _ = QFileDialog.getOpenFileNames(
-            self, "Wybierz pliki PDF", str(Path.home()), "PDF Files (*.pdf)"
+        path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Otwórz plik Excel",
+            str(get_excel_dir()),
+            "Excel Files (*.xlsx)"
         )
-        if paths:
-            self.process_files(paths)
+        if path:
+            self.status.setText(path)
+            try:
+                if sys.platform.startswith("win"):
+                    os.startfile(path)
+                else:
+                    QDesktopServices.openUrl(QUrl.fromLocalFile(path))
+            except Exception as e:
+                self.status.setText(f"Nie mogę otworzyć pliku: {e}")
 
     def process_files(self, paths: list[str]):
         count_ok, count_fail = 0, 0
@@ -134,7 +206,7 @@ class MainWindow(QWidget):
                 count_fail += 1
 
         if count_ok and not count_fail:
-            self.status.setText(f"Plik ma {read_from_pdf(dest)} znakow.")
+            self.status.setText(f"{read_from_pdf(dest)}")
         elif count_ok and count_fail:
             self.status.setText(f"OK: {count_ok}, błędów: {count_fail} — folder: {self.dest_dir}")
         else:
